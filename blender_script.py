@@ -23,6 +23,8 @@ import os
 import random
 import sys
 import time
+import urllib.request
+import uuid
 from typing import Tuple
 
 import bpy
@@ -218,6 +220,20 @@ def save_images(object_file: str) -> None:
         bpy.ops.render.render(write_still=True)
 
 
+def download_object(object_url: str) -> str:
+    """Download the object and return the path."""
+    uid = uuid.uuid4()
+    tmp_local_path = os.path.join("tmp-objects", f"{uid}.glb" + ".tmp")
+    local_path = os.path.join("tmp-objects", f"{uid}.glb")
+    # wget the file and put it in local_path
+    os.makedirs(os.path.dirname(tmp_local_path), exist_ok=True)
+    urllib.request.urlretrieve(object_url, tmp_local_path)
+    os.rename(tmp_local_path, local_path)
+    # get the absolute path
+    local_path = os.path.abspath(local_path)
+    return local_path
+
+
 if __name__ == "__main__":
     with open(args.input_model_paths) as f:
         object_paths = json.load(f)
@@ -229,15 +245,23 @@ if __name__ == "__main__":
     for curr_object_i, object_path in enumerate(object_paths):
         try:
             start_i = time.time()
-            save_images(object_path)
+            if object_path.startswith("http"):
+                local_path = download_object(object_path)
+            else:
+                local_path = object_path
+            save_images(local_path)
             end_i = time.time()
-            print("Finished", object_path, "in", end_i - start_i, "seconds")
+            print("Finished", local_path, "in", end_i - start_i, "seconds")
+            # delete the object if it was downloaded
+            if object_path.startswith("http"):
+                os.remove(local_path)
             with open(f"progress/{args.worker_i}.csv", "a") as f:
                 f.write(
                     f"{curr_object_i + 1},{len(object_paths)},{object_path},{end_i - start_i}\n"
                 )
-        except:
+        except Exception as e:
             print("Failed to render", object_path)
+            print(e)
             time.sleep(2)
     end = time.time()
     print(

@@ -10,9 +10,9 @@ uids = objaverse.load_uids()
 
 random.shuffle(uids)
 
-uids = uids[:100]
-
-paths = objaverse.load_objects(uids)
+object_paths = objaverse._load_object_paths()
+uids = uids[:1000]
+uid_object_paths = [f"https://huggingface.co/datasets/allenai/objaverse/resolve/main/{object_paths[uid]}" for uid in uids]
 
 with open("input_model_paths.json", "w") as f:
-    json.dump(list(paths.values()), f, indent=2)
+    json.dump(uid_object_paths, f, indent=2)
