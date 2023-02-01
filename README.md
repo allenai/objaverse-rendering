@@ -1,0 +1,1 @@
+# objaverse-simple-rendering
