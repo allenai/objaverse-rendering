@@ -41,6 +41,7 @@ parser.add_argument(
 parser.add_argument("--scale", type=float, default=0.8)
 parser.add_argument("--num_images", type=int, default=12)
 parser.add_argument("--camera_dist", type=int, default=1.2)
+parser.add_argument("--worker_i", type=int, default=0)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 args = parser.parse_args(argv)
@@ -221,13 +222,20 @@ if __name__ == "__main__":
     with open(args.input_model_paths) as f:
         object_paths = json.load(f)
 
+    os.makedirs("progress", exist_ok=True)
     start = time.time()
-    for object_path in object_paths:
+    with open(f"progress/{args.worker_i}.csv", "w") as f:
+        f.write("num_finished,total,object_path,time\n")
+    for curr_object_i, object_path in enumerate(object_paths):
         try:
             start_i = time.time()
             save_images(object_path)
             end_i = time.time()
             print("Finished", object_path, "in", end_i - start_i, "seconds")
+            with open(f"progress/{args.worker_i}.csv", "a") as f:
+                f.write(
+                    f"{curr_object_i + 1},{len(object_paths)},{object_path},{end_i - start_i}\n"
+                )
         except:
             print("Failed to render", object_path)
             time.sleep(2)
