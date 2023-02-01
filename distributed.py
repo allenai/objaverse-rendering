@@ -2,6 +2,9 @@ import argparse
 import json
 import os
 import subprocess
+import time
+
+import wandb
 
 # choose number of gpus
 parser = argparse.ArgumentParser()
@@ -28,7 +31,9 @@ print(f'num_models: {num_models}')
 print(f'models_per_worker: {models_per_worker}')
 
 # create a list of lists of model paths
-model_paths = [model_paths[i:i + models_per_worker] for i in range(0, num_models, models_per_worker)]
+# model_paths = [model_paths[i:i + models_per_worker] for i in range(0, num_models, models_per_worker)]
+model_paths = [model_paths[i::num_workers] for i in range(num_workers)]
+assert num_models == sum([len(x) for x in model_paths])
 
 # create a tmp dir
 os.makedirs('tmp', exist_ok=True)
@@ -40,10 +45,34 @@ for gpu_i in range(args.num_gpus):
         with open(worker_input_paths, 'w') as f:
             json.dump(worker_objects, f, indent=2)
         command = (
-            f"export DISPLAY=:0.{gpu_i} && "
-            f"blender-3.2.2-linux-x64/blender -b -P blender_script.py -- "
-            f"--input_model_paths {worker_input_paths}"
+            f"export DISPLAY=:0.{gpu_i} &&"
+            f" blender-3.2.2-linux-x64/blender -b -P blender_script.py --"
+            f" --input_model_paths {worker_input_paths}"
+            f" --worker_i {worker_i}"
         )
 
         subprocess.Popen(command, shell=True)
 
+
+# do monitoring on all of the progress
+wandb.init(project="objaverse-rendering", entity="prior-ai2")
+wandb.config.update(args)
+
+while True:
+    time.sleep(10)
+    # check the progress/{worker_id}.csv files of each of the workers
+    num_finished = 0
+    for worker_i in range(num_workers):
+        progress_file = f'progress/{worker_i}.csv'
+        # read the last line of the progress file
+        if os.path.exists(progress_file):
+            with open(progress_file, 'r') as f:
+                lines = f.readlines()
+                if len(lines) > 1:
+                    worker_progress = lines[-1].strip()
+                    num_finished_, total_, object_path, total_time = worker_progress.split(',')
+                    num_finished += int(num_finished_)
+    percentage = num_finished / num_models
+    wandb.log({'num_finished': num_finished, 'total': num_models, 'percentage': percentage})
+    if num_finished == num_models:
+        break
