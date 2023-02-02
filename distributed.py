@@ -1,13 +1,9 @@
 import argparse
-import glob
 import json
 import os
 import shutil
 import subprocess
 import time
-
-import boto3
-from tqdm import tqdm
 
 import wandb
 
@@ -40,6 +36,9 @@ print(f'models_per_worker: {models_per_worker}')
 model_paths = [model_paths[i::num_workers] for i in range(num_workers)]
 assert num_models == sum([len(x) for x in model_paths])
 
+# delete the views dir
+shutil.rmtree('views', ignore_errors=True)
+
 # create a tmp dir
 os.makedirs('tmp', exist_ok=True)
 for gpu_i in range(args.num_gpus):
@@ -58,14 +57,12 @@ for gpu_i in range(args.num_gpus):
 
         subprocess.Popen(command, shell=True)
 
+# upload the files to s3
+subprocess.Popen(f"python3 upload_files.py --num_files {num_models * 12}", shell=True)
 
 # do monitoring on all of the progress
 wandb.init(project="objaverse-rendering", entity="prior-ai2")
 wandb.config.update(args)
-
-i = 0
-uploaded_files = set()
-s3 = boto3.client('s3')
 
 while True:
     time.sleep(10)
@@ -85,23 +82,3 @@ while True:
     wandb.log({'num_finished': num_finished, 'total': num_models, 'percentage': percentage})
     if num_finished == num_models:
         break
-    i += 1
-
-    if i % 10 == 0:
-        # upload the files
-        png_files = set(glob.glob("views/**/*.png"))
-        unuploaded_files = png_files - uploaded_files
-
-        for png_file in tqdm(unuploaded_files):
-            # upload the file without the views/ prefix
-            s3.upload_file(png_file, "objaverse-images", png_file[len("views/"):])
-            uploaded_files.add(png_file)
-
-        # check for all the views directories that have 12 files in them
-        # if there are 12 files, delete the directory
-        for views_dir in glob.glob("views/*"):
-            # check if there are 12 files in the directory
-            # and if all the files are uploaded
-            files = glob.glob(f"{views_dir}/*.png")
-            if len(files) == 12 and set(files).issubset(uploaded_files):
-                shutil.rmtree(views_dir)
