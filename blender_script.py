@@ -28,6 +28,7 @@ import uuid
 from typing import Tuple
 
 import bpy
+from mathutils import Vector
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -112,54 +113,6 @@ def reset_lighting() -> None:
     bpy.data.objects["Area"].location[2] = 0.5
 
 
-def join_meshes() -> bpy.types.Object:
-    """Joins all the meshes in the scene into one mesh."""
-    # get all the meshes in the scene
-    meshes = [obj for obj in bpy.data.objects if obj.type == "MESH"]
-    # join all of the meshes
-    bpy.ops.object.select_all(action="DESELECT")
-    for mesh in meshes:
-        mesh.select_set(True)
-        bpy.context.view_layer.objects.active = mesh
-    # join the meshes
-    bpy.ops.object.join()
-    meshes = [obj for obj in bpy.data.objects if obj.type == "MESH"]
-    assert len(meshes) == 1
-    mesh = meshes[0]
-    return mesh
-
-
-def center_mesh(mesh: bpy.types.Object) -> None:
-    """Centers the mesh at the origin."""
-    # select the mesh
-    bpy.ops.object.select_all(action="DESELECT")
-    mesh.select_set(True)
-    # clear and keep the transformation of the parent
-    bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
-    # set the mesh position to the origin, use the bounding box center
-    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
-    bpy.context.object.location = (0, 0, 0)
-    # 0 out the transform
-    bpy.ops.object.transforms_to_deltas(mode="ALL")
-
-
-def resize_object(mesh: bpy.types.Object, max_side_length_meters: float) -> None:
-    """Resizes the object to have a max side length of max_side_length_meters meters."""
-    # select the mesh
-    bpy.ops.object.select_all(action="DESELECT")
-    mesh.select_set(True)
-    # get the bounding box
-    x_size, y_size, z_size = mesh.dimensions
-    # get the max side length
-    curr_max_side_length = max([x_size, y_size, z_size])
-    # get the scale factor
-    scale_factor = max_side_length_meters / curr_max_side_length
-    # scale the object
-    bpy.ops.transform.resize(value=(scale_factor, scale_factor, scale_factor))
-    # 0 out the transform
-    bpy.ops.object.transforms_to_deltas(mode="ALL")
-
-
 def reset_scene() -> None:
     """Resets the scene to a clean state."""
     # delete everything that isn't part of a camera or a light
@@ -188,6 +141,49 @@ def load_object(object_path: str) -> None:
         raise ValueError(f"Unsupported file type: {object_path}")
 
 
+def scene_bbox(single_obj=None, ignore_matrix=False):
+    bbox_min = (math.inf,) * 3
+    bbox_max = (-math.inf,) * 3
+    found = False
+    for obj in scene_meshes() if single_obj is None else [single_obj]:
+        found = True
+        for coord in obj.bound_box:
+            coord = Vector(coord)
+            if not ignore_matrix:
+                coord = obj.matrix_world @ coord
+            bbox_min = tuple(min(x, y) for x, y in zip(bbox_min, coord))
+            bbox_max = tuple(max(x, y) for x, y in zip(bbox_max, coord))
+    if not found:
+        raise RuntimeError("no objects in scene to compute bounding box for")
+    return Vector(bbox_min), Vector(bbox_max)
+
+
+def scene_root_objects():
+    for obj in bpy.context.scene.objects.values():
+        if not obj.parent:
+            yield obj
+
+
+def scene_meshes():
+    for obj in bpy.context.scene.objects.values():
+        if isinstance(obj.data, (bpy.types.Mesh)):
+            yield obj
+
+
+def normalize_scene():
+    bbox_min, bbox_max = scene_bbox()
+    scale = 1 / max(bbox_max - bbox_min)
+    for obj in scene_root_objects():
+        obj.scale = obj.scale * scale
+    # Apply scale to matrix_world.
+    bpy.context.view_layer.update()
+    bbox_min, bbox_max = scene_bbox()
+    offset = -(bbox_min + bbox_max) / 2
+    for obj in scene_root_objects():
+        obj.matrix_world.translation += offset
+    bpy.ops.object.select_all(action="DESELECT")
+
+
 def save_images(object_file: str) -> None:
     """Saves rendered images of the object in the scene."""
     os.makedirs(args.output_dir, exist_ok=True)
@@ -197,13 +193,15 @@ def save_images(object_file: str) -> None:
     # load the object
     load_object(object_file)
     object_uid = os.path.basename(object_file).split(".")[0]
-    mesh = join_meshes()
-    center_mesh(mesh)
-    resize_object(mesh, args.scale)
+    normalize_scene()
+
+    # create an empty object to track
+    empty = bpy.data.objects.new("Empty", None)
+    scene.collection.objects.link(empty)
+    cam_constraint.target = empty
 
     for i in range(args.num_images):
         # set the camera position
-        cam_constraint.target = mesh
         theta = (i / args.num_images) * math.pi * 2
         phi = math.radians(60)
         point = (
@@ -213,7 +211,6 @@ def save_images(object_file: str) -> None:
         )
         reset_lighting()
         cam.location = point
-
         # render the image
         render_path = os.path.join(args.output_dir, object_uid, f"{i:03d}.png")
         scene.render.filepath = render_path
@@ -222,7 +219,8 @@ def save_images(object_file: str) -> None:
 
 def download_object(object_url: str) -> str:
     """Download the object and return the path."""
-    uid = uuid.uuid4()
+    # uid = uuid.uuid4()
+    uid = object_url.split("/")[-1].split(".")[0]
     tmp_local_path = os.path.join("tmp-objects", f"{uid}.glb" + ".tmp")
     local_path = os.path.join("tmp-objects", f"{uid}.glb")
     # wget the file and put it in local_path
