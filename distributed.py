@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import time
+import subprocess
 
 import wandb
 
@@ -14,9 +15,16 @@ parser.add_argument('--workers_per_gpu', type=int, default=1, help='number of wo
 parser.add_argument('--input_model_paths', type=str, required=True, help='Path to a json file containing a list of paths to .glb files.')
 args = parser.parse_args()
 
+def get_gpu_count():
+    result = subprocess.run(
+        ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+        stdout=subprocess.PIPE
+    )
+    return len(result.stdout.splitlines())
+
+
 if args.num_gpus == -1:
-    # TODO: fix this hard coded bug!!!
-    args.num_gpus = 4
+    args.num_gpus = get_gpu_count()
 
 print(args)
 
