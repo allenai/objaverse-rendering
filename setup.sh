@@ -8,4 +8,3 @@ sudo update-ca-certificates --fresh
 export SSL_CERT_DIR=/etc/ssl/certs
 
 sudo python3 ai2thor-xorg.py start || true
-export DISPLAY=:0.0
