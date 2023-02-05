@@ -15,5 +15,10 @@ python3 download_objaverse.py
 Then run:
 
 ```bash
-blender-3.2.2-linux-x64/blender -b -P blender_script.py -- --input_model_paths input_model_paths.json
+pip install -r requirements.txt
+screen -S objaverse
+python3 distributed.py \
+  --num_gpus 8 \
+  --workers_per_gpu 10 \
+  --input_model_paths input_model_paths.json
 ```
