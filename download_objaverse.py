@@ -51,6 +51,7 @@ uid_object_paths = [
     f"https://huggingface.co/datasets/allenai/objaverse/resolve/main/{object_paths[uid]}"
     for uid in uids
 ]
+random.shuffle(uid_object_paths)
 
 with open("input_model_paths.json", "w") as f:
     json.dump(uid_object_paths, f, indent=2)
