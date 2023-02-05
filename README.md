@@ -12,6 +12,8 @@ Then download the objects:
 python3 download_objaverse.py
 ```
 
+Then authorize Wandb and AWS S3.
+
 Then run:
 
 ```bash
