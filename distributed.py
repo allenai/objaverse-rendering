@@ -1,17 +1,17 @@
 import argparse
 import json
+import multiprocessing
 import os
 import shutil
 import subprocess
 import time
-import subprocess
 
 import wandb
 
 # choose number of gpus
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_gpus', type=int, default=-1, help='number of gpus to use. -1 means all available gpus')
-parser.add_argument('--workers_per_gpu', type=int, default=1, help='number of workers per gpu')
+parser.add_argument('--workers_per_gpu', type=int, default=-1, help='number of workers per gpu')
 parser.add_argument('--input_model_paths', type=str, required=True, help='Path to a json file containing a list of paths to .glb files.')
 args = parser.parse_args()
 
@@ -25,6 +25,10 @@ def get_gpu_count():
 
 if args.num_gpus == -1:
     args.num_gpus = get_gpu_count()
+
+if args.workers_per_gpu == -1:
+    # use -1 to not overload the machine because it frequently crashes
+    args.workers_per_gpu = multiprocessing.cpu_count() // (args.num_gpus - 1)
 
 print(args)
 
