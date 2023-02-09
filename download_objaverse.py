@@ -52,5 +52,5 @@ uid_object_paths = [
 ]
 random.shuffle(uid_object_paths)
 
-with open("input_model_paths.json", "w") as f:
+with open("input_models_path.json", "w") as f:
     json.dump(uid_object_paths, f, indent=2)
