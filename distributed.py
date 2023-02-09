@@ -1,96 +1,111 @@
-import argparse
+import glob
 import json
 import multiprocessing
-import os
 import shutil
 import subprocess
 import time
+from dataclasses import dataclass
+from typing import Optional
+
+import boto3
+import tyro
 
 import wandb
 
-# choose number of gpus
-parser = argparse.ArgumentParser()
-parser.add_argument('--num_gpus', type=int, default=-1, help='number of gpus to use. -1 means all available gpus')
-parser.add_argument('--workers_per_gpu', type=int, default=-1, help='number of workers per gpu')
-parser.add_argument('--input_model_paths', type=str, required=True, help='Path to a json file containing a list of paths to .glb files.')
-args = parser.parse_args()
 
-def get_gpu_count():
-    result = subprocess.run(
-        ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
-        stdout=subprocess.PIPE
-    )
-    return len(result.stdout.splitlines())
+@dataclass
+class Args:
+    workers_per_gpu: int
+    """number of workers per gpu"""
+
+    input_models_path: str
+    """Path to a json file containing a list of 3D object files"""
+
+    upload_to_s3: bool = True
+    """Whether to upload the rendered images to S3"""
+
+    log_to_wandb: bool = True
+    """Whether to log the progress to wandb"""
+
+    num_gpus: int = -1
+    """number of gpus to use. -1 means all available gpus"""
 
 
-if args.num_gpus == -1:
-    args.num_gpus = get_gpu_count()
+def worker(
+    queue: multiprocessing.JoinableQueue,
+    count: multiprocessing.Value,
+    gpu: int,
+    worker: int,
+    s3: Optional[boto3.client]
+) -> None:
+    while True:
+        item = queue.get()
+        if item is None:
+            break
 
-if args.workers_per_gpu == -1:
-    # use -1 to not overload the machine because it frequently crashes
-    args.workers_per_gpu = multiprocessing.cpu_count() // (args.num_gpus - 1)
-
-print(args)
-
-with open(args.input_model_paths, 'r') as f:
-    model_paths = json.load(f)
-
-num_workers = args.num_gpus * args.workers_per_gpu
-num_models = len(model_paths)
-models_per_worker = num_models // num_workers
-
-print(f'num_workers: {num_workers}')
-print(f'num_models: {num_models}')
-print(f'models_per_worker: {models_per_worker}')
-
-# create a list of lists of model paths
-# model_paths = [model_paths[i:i + models_per_worker] for i in range(0, num_models, models_per_worker)]
-model_paths = [model_paths[i::num_workers] for i in range(num_workers)]
-assert num_models == sum([len(x) for x in model_paths])
-
-# delete the views dir
-shutil.rmtree('views', ignore_errors=True)
-
-# create a tmp dir
-os.makedirs('tmp', exist_ok=True)
-for gpu_i in range(args.num_gpus):
-    for worker_i in range(args.workers_per_gpu):
-        worker_i = gpu_i * args.workers_per_gpu + worker_i
-        worker_objects = model_paths[worker_i]
-        worker_input_paths = f'tmp/input_model_paths_{worker_i}.json'
-        with open(worker_input_paths, 'w') as f:
-            json.dump(worker_objects, f, indent=2)
+        # Perform some operation on the item
+        print(item, gpu)
         command = (
-            f"export DISPLAY=:0.{gpu_i} &&"
+            f"export DISPLAY=:0.{gpu} &&"
             f" blender-3.2.2-linux-x64/blender -b -P blender_script.py --"
-            f" --input_model_paths {worker_input_paths}"
-            f" --worker_i {worker_i}"
+            f" --object_path {item}"
         )
+        subprocess.run(command, shell=True)
 
-        subprocess.Popen(command, shell=True)
+        if args.upload_to_s3:
+            if item.startswith("http"):
+                uid = item.split("/")[-1].split(".")[0]
+                for f in glob.glob(f"views/{uid}/*"):
+                    s3.upload_file(f, "objaverse-images", f"views/{uid}/{f.split('/')[-1]}")
+            # remove the views/uid directory
+            shutil.rmtree(f"views/{uid}")
 
-# upload the files to s3
-subprocess.Popen(f"python3 upload_files.py --num_files {num_models * 12}", shell=True)
+        with count.get_lock():
+            count.value += 1
 
-# do monitoring on all of the progress
-wandb.init(project="objaverse-rendering", entity="prior-ai2")
-wandb.config.update(args)
+        queue.task_done()
 
-while True:
-    time.sleep(10)
-    # check the progress/{worker_id}.csv files of each of the workers
-    num_finished = 0
-    for worker_i in range(num_workers):
-        progress_file = f'progress/{worker_i}.csv'
-        # read the last line of the progress file
-        if os.path.exists(progress_file):
-            with open(progress_file, 'r') as f:
-                lines = f.readlines()
-                if len(lines) > 1:
-                    worker_progress = lines[-1].strip()
-                    num_finished_, total_, object_path, total_time = worker_progress.split(',')
-                    num_finished += int(num_finished_)
-    percentage = num_finished / num_models
-    wandb.log({'num_finished': num_finished, 'total': num_models, 'percentage': percentage})
-    if num_finished == num_models:
-        break
+if __name__ == '__main__':
+    args = tyro.cli(Args)
+
+    s3 = boto3.client("s3") if args.upload_to_s3 else None
+    queue = multiprocessing.JoinableQueue()
+    count = multiprocessing.Value('i', 0)
+
+    if args.log_to_wandb:
+        wandb.init(project="objaverse-rendering", entity="prior-ai2")
+
+    # Start worker processes on each of the GPUs
+    for gpu_i in range(args.num_gpus):
+        for worker_i in range(args.workers_per_gpu):
+            worker_i = gpu_i * args.workers_per_gpu + worker_i
+            process = multiprocessing.Process(target=worker, args=(queue, count, gpu_i, worker_i, s3))
+            process.daemon = True
+            process.start()
+
+    # Add items to the queue
+    with open(args.input_models_path, "r") as f:
+        model_paths = json.load(f)
+    for item in model_paths:
+        queue.put(item)
+
+    # update the wandb count
+    if args.log_to_wandb:
+        while True:
+            time.sleep(5)
+            wandb.log(
+                {
+                    "count": count.value,
+                    "total": len(model_paths),
+                    "progress": count.value / len(model_paths)
+                }
+            )
+            if count.value == len(model_paths):
+                break
+
+    # Wait for all tasks to be completed
+    queue.join()
+
+    # Add sentinels to the queue to stop the worker processes
+    for i in range(args.num_gpus * args.workers_per_gpu):
+        queue.put(None)

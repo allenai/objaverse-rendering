@@ -6,7 +6,7 @@ object around the origin. The images are saved to the output directory.
 
 Example usage:
     blender -b -P blender_script.py -- \
-        --input_model_paths input_model_paths.json \
+        --object_path my_object.glb \
         --output_dir ./views \
         --engine CYCLES \
         --scale 0.8 \
@@ -32,10 +32,10 @@ from mathutils import Vector
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--input_model_paths",
+    "--object_path",
     type=str,
     required=True,
-    help="Path to a json file containing a list of paths to .glb files.",
+    help="Path to the object file",
 )
 parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
@@ -44,7 +44,6 @@ parser.add_argument(
 parser.add_argument("--scale", type=float, default=0.8)
 parser.add_argument("--num_images", type=int, default=12)
 parser.add_argument("--camera_dist", type=int, default=1.2)
-parser.add_argument("--worker_i", type=int, default=0)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 args = parser.parse_args(argv)
@@ -233,39 +232,18 @@ def download_object(object_url: str) -> str:
 
 
 if __name__ == "__main__":
-    with open(args.input_model_paths) as f:
-        object_paths = json.load(f)
-
-    os.makedirs("progress", exist_ok=True)
-    start = time.time()
-    with open(f"progress/{args.worker_i}.csv", "w") as f:
-        f.write("num_finished,total,object_path,time\n")
-    for curr_object_i, object_path in enumerate(object_paths):
-        try:
-            start_i = time.time()
-            if object_path.startswith("http"):
-                local_path = download_object(object_path)
-            else:
-                local_path = object_path
-            save_images(local_path)
-            end_i = time.time()
-            print("Finished", local_path, "in", end_i - start_i, "seconds")
-            # delete the object if it was downloaded
-            if object_path.startswith("http"):
-                os.remove(local_path)
-            with open(f"progress/{args.worker_i}.csv", "a") as f:
-                f.write(
-                    f"{curr_object_i + 1},{len(object_paths)},{object_path},{end_i - start_i}\n"
-                )
-        except Exception as e:
-            print("Failed to render", object_path)
-            print(e)
-            time.sleep(2)
-    end = time.time()
-    print(
-        "Finished all in",
-        end - start,
-        "seconds, average",
-        (end - start) / len(object_paths),
-        "seconds per object",
-    )
+    try:
+        start_i = time.time()
+        if args.object_path.startswith("http"):
+            local_path = download_object(args.object_path)
+        else:
+            local_path = args.object_path
+        save_images(local_path)
+        end_i = time.time()
+        print("Finished", local_path, "in", end_i - start_i, "seconds")
+        # delete the object if it was downloaded
+        if args.object_path.startswith("http"):
+            os.remove(local_path)
+    except Exception as e:
+        print("Failed to render", args.object_path)
+        print(e)
