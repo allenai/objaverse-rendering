@@ -1,3 +1,7 @@
+# Taken from https://github.com/allenai/ai2thor/blob/main/scripts/ai2thor-xorg
+# Starts an x-server to support running Blender on a headless machine with
+# dedicated NVIDIA GPUs
+
 #!/usr/bin/env python3
 import os
 import sys
