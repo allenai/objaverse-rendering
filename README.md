@@ -1,37 +1,77 @@
 # Objaverse Rendering
 
-To run the example, first install the dependencies:
-
-```bash
-source setup.sh
-```
-
-Then download the objects:
-
-```bash
-python3 download_objaverse.py
-```
+Scripts to render Objaverse objects in Blender.
 
 ### System requirements
 
 We have only tested the rendering scripts on Ubuntu machines that have NVIDIA GPUs.
 
-Then run:
+If you run into any issues, please open an issue! :)
+
+### Installation
+
+1. Install Blender
+
+```bash
+wget https://download.blender.org/release/Blender3.2/blender-3.2.2-linux-x64.tar.xz
+tar -xf blender-3.2.2-linux-x64.tar.xz
+rm blender-3.2.2-linux-x64.tar.xz
+```
+
+2. Update certificates for Blender to download URLs
+
+```bash
+# this is needed to download urls in blender
+# https://github.com/python-poetry/poetry/issues/5117#issuecomment-1058747106
+sudo update-ca-certificates --fresh
+export SSL_CERT_DIR=/etc/ssl/certs
+```
+
+3. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
-screen -S objaverse
-python3 distributed.py \
-  --num_gpus 8 \
-  --workers_per_gpu 10 \
-  --input_model_paths input_model_paths.json
 ```
+
+4. (Optional) If you are running rendering on a headless machine, you will need to start an xserver. To do this, run:
+
+```bash
+sudo apt-get install xserver-xorg
+sudo python3 scripts/start_xserver.py start
+```
+
+### Rendering
+
+1. Download the objects:
+
+```bash
+python3 scripts/download_objaverse.py --start_i 0 --end_i 100
+```
+
+2. Start the distributed rendering script:
+
+```bash
+python3 scripts/distributed.py \
+  --num_gpus <NUM_GPUs> \
+  --workers_per_gpu <WORKERS_PER_GPU> \
+  --input_models_path <INPUT_MODELS_PATH> \
+  --log_to_wandb False \
+  --upload_to_s3 False
+```
+
+This will then render the images into the `views` directory.
 
 ### (Optional) Logging and Uploading
 
 In the `scripts/distributed.py` script, we use [Wandb](https://wandb.ai/site) to log the rendering results. You can create a free account and then set the `WANDB_API_KEY` environment variable to your API key.
 
 We also use [AWS S3](https://aws.amazon.com/s3/) to upload the rendered images. You can create a free account and then set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables to your credentials.
+
+### Technical Notes
+
+#### Blender Memory Management
+
+It may be strange that we create and destroy a new instance of Blender
 
 ### 👋 Our Team
 
