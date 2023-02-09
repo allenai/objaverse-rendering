@@ -22,7 +22,6 @@ def get_completed_uids():
     bucket = s3.Bucket("objaverse-images")
     bucket_files = [obj.key for obj in tqdm(bucket.objects.all())]
 
-    bucket_files[:10]
     dir_counts = {}
     for file in bucket_files:
         d = file.split("/")[0]
