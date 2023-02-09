@@ -1,4 +1,4 @@
-# objaverse-simple-rendering
+# Objaverse Rendering
 
 To run the example, first install the dependencies:
 
