@@ -35,7 +35,6 @@ def worker(
     queue: multiprocessing.JoinableQueue,
     count: multiprocessing.Value,
     gpu: int,
-    worker: int,
     s3: Optional[boto3.client]
 ) -> None:
     while True:
@@ -79,7 +78,7 @@ if __name__ == '__main__':
     for gpu_i in range(args.num_gpus):
         for worker_i in range(args.workers_per_gpu):
             worker_i = gpu_i * args.workers_per_gpu + worker_i
-            process = multiprocessing.Process(target=worker, args=(queue, count, gpu_i, worker_i, s3))
+            process = multiprocessing.Process(target=worker, args=(queue, count, gpu_i, s3))
             process.daemon = True
             process.start()
 
