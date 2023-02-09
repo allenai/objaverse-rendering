@@ -3,7 +3,7 @@
 To run the example, first install the dependencies:
 
 ```bash
-sudo source setup.sh
+source setup.sh
 ```
 
 Then download the objects:
