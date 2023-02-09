@@ -1,6 +1,6 @@
 # Objaverse Rendering
 
-Scripts to render Objaverse objects in Blender.
+Scripts to perform distributed rendering of Objaverse objects in Blender across many GPUs and processes.
 
 ### System requirements
 
