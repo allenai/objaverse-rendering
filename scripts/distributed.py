@@ -9,7 +9,6 @@ from typing import Optional
 
 import boto3
 import tyro
-
 import wandb
 
 
@@ -35,7 +34,7 @@ def worker(
     queue: multiprocessing.JoinableQueue,
     count: multiprocessing.Value,
     gpu: int,
-    s3: Optional[boto3.client]
+    s3: Optional[boto3.client],
 ) -> None:
     while True:
         item = queue.get()
@@ -46,7 +45,7 @@ def worker(
         print(item, gpu)
         command = (
             f"export DISPLAY=:0.{gpu} &&"
-            f" blender-3.2.2-linux-x64/blender -b -P blender_script.py --"
+            f" blender-3.2.2-linux-x64/blender -b -P scripts/blender_script.py --"
             f" --object_path {item}"
         )
         subprocess.run(command, shell=True)
@@ -55,7 +54,9 @@ def worker(
             if item.startswith("http"):
                 uid = item.split("/")[-1].split(".")[0]
                 for f in glob.glob(f"views/{uid}/*"):
-                    s3.upload_file(f, "objaverse-images", f"views/{uid}/{f.split('/')[-1]}")
+                    s3.upload_file(
+                        f, "objaverse-images", f"views/{uid}/{f.split('/')[-1]}"
+                    )
             # remove the views/uid directory
             shutil.rmtree(f"views/{uid}")
 
@@ -64,12 +65,13 @@ def worker(
 
         queue.task_done()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     args = tyro.cli(Args)
 
     s3 = boto3.client("s3") if args.upload_to_s3 else None
     queue = multiprocessing.JoinableQueue()
-    count = multiprocessing.Value('i', 0)
+    count = multiprocessing.Value("i", 0)
 
     if args.log_to_wandb:
         wandb.init(project="objaverse-rendering", entity="prior-ai2")
@@ -78,7 +80,9 @@ if __name__ == '__main__':
     for gpu_i in range(args.num_gpus):
         for worker_i in range(args.workers_per_gpu):
             worker_i = gpu_i * args.workers_per_gpu + worker_i
-            process = multiprocessing.Process(target=worker, args=(queue, count, gpu_i, s3))
+            process = multiprocessing.Process(
+                target=worker, args=(queue, count, gpu_i, s3)
+            )
             process.daemon = True
             process.start()
 
@@ -96,7 +100,7 @@ if __name__ == '__main__':
                 {
                     "count": count.value,
                     "total": len(model_paths),
-                    "progress": count.value / len(model_paths)
+                    "progress": count.value / len(model_paths),
                 }
             )
             if count.value == len(model_paths):
