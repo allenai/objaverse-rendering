@@ -51,7 +51,7 @@ if __name__ == "__main__":
     uids = uids[args.start_i : args.end_i]
 
     # get the uids that have already been downloaded
-    if not args.skip_completed:
+    if args.skip_completed:
         completed_uids = get_completed_uids()
         uids = [uid for uid in uids if uid not in completed_uids]
 
