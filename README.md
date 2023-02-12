@@ -67,12 +67,6 @@ In the `scripts/distributed.py` script, we use [Wandb](https://wandb.ai/site) to
 
 We also use [AWS S3](https://aws.amazon.com/s3/) to upload the rendered images. You can create a free account and then set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables to your credentials.
 
-### Technical Notes
-
-#### Blender Memory Management
-
-It may be strange that we create and destroy a new instance of Blender
-
 ### 👋 Our Team
 
 Objaverse is an open-source project built by the [PRIOR team](//prior.allenai.org) at the [Allen Institute for AI](//allenai.org) (AI2).
