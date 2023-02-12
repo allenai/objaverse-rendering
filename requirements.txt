@@ -1,3 +1,4 @@
+boto3
 wandb
 tqdm
 objaverse
