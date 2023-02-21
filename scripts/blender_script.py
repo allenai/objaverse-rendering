@@ -17,14 +17,12 @@ Here, input_model_paths.json is a json file containing a list of paths to .glb.
 """
 
 import argparse
-import json
 import math
 import os
 import random
 import sys
 import time
 import urllib.request
-import uuid
 from typing import Tuple
 
 import bpy
@@ -69,24 +67,6 @@ scene.cycles.filter_width = 0.01
 scene.cycles.use_denoising = True
 scene.render.film_transparent = True
 
-cam = scene.objects["Camera"]
-cam.location = (0, 1.2, 0)
-cam.data.lens = 35
-cam.data.sensor_width = 32
-
-cam_constraint = cam.constraints.new(type="TRACK_TO")
-cam_constraint.track_axis = "TRACK_NEGATIVE_Z"
-cam_constraint.up_axis = "UP_Y"
-
-# setup lighting
-bpy.ops.object.light_add(type="AREA")
-light2 = bpy.data.lights["Area"]
-light2.energy = 30000
-bpy.data.objects["Area"].location[2] = 0.5
-bpy.data.objects["Area"].scale[0] = 100
-bpy.data.objects["Area"].scale[1] = 100
-bpy.data.objects["Area"].scale[2] = 100
-
 
 def sample_point_on_sphere(radius: float) -> Tuple[float, float, float]:
     theta = random.random() * 2 * math.pi
@@ -98,18 +78,18 @@ def sample_point_on_sphere(radius: float) -> Tuple[float, float, float]:
     )
 
 
-def randomize_lighting() -> None:
-    light2.energy = random.uniform(5000, 35000)
-    bpy.data.objects["Area"].location[0] = 0
-    bpy.data.objects["Area"].location[1] = 0
-    bpy.data.objects["Area"].location[2] = random.uniform(0.5, 1.5)
-
-
-def reset_lighting() -> None:
-    light2.energy = 30_000
-    bpy.data.objects["Area"].location[0] = 0
-    bpy.data.objects["Area"].location[1] = 0
+def add_lighting() -> None:
+    # delete the default light
+    bpy.data.objects["Light"].select_set(True)
+    bpy.ops.object.delete()
+    # add a new light
+    bpy.ops.object.light_add(type="AREA")
+    light2 = bpy.data.lights["Area"]
+    light2.energy = 30000
     bpy.data.objects["Area"].location[2] = 0.5
+    bpy.data.objects["Area"].scale[0] = 100
+    bpy.data.objects["Area"].scale[1] = 100
+    bpy.data.objects["Area"].scale[2] = 100
 
 
 def reset_scene() -> None:
@@ -183,22 +163,31 @@ def normalize_scene():
     bpy.ops.object.select_all(action="DESELECT")
 
 
+def setup_camera():
+    cam = scene.objects["Camera"]
+    cam.location = (0, 1.2, 0)
+    cam.data.lens = 35
+    cam.data.sensor_width = 32
+    cam_constraint = cam.constraints.new(type="TRACK_TO")
+    cam_constraint.track_axis = "TRACK_NEGATIVE_Z"
+    cam_constraint.up_axis = "UP_Y"
+    return cam, cam_constraint
+
+
 def save_images(object_file: str) -> None:
     """Saves rendered images of the object in the scene."""
     os.makedirs(args.output_dir, exist_ok=True)
-
     reset_scene()
-
     # load the object
     load_object(object_file)
     object_uid = os.path.basename(object_file).split(".")[0]
     normalize_scene()
-
+    add_lighting()
+    cam, cam_constraint = setup_camera()
     # create an empty object to track
     empty = bpy.data.objects.new("Empty", None)
     scene.collection.objects.link(empty)
     cam_constraint.target = empty
-
     for i in range(args.num_images):
         # set the camera position
         theta = (i / args.num_images) * math.pi * 2
@@ -208,7 +197,6 @@ def save_images(object_file: str) -> None:
             args.camera_dist * math.sin(phi) * math.sin(theta),
             args.camera_dist * math.cos(phi),
         )
-        reset_lighting()
         cam.location = point
         # render the image
         render_path = os.path.join(args.output_dir, object_uid, f"{i:03d}.png")
