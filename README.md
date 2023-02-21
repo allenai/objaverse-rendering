@@ -54,9 +54,7 @@ python3 scripts/download_objaverse.py --start_i 0 --end_i 100
 python3 scripts/distributed.py \
   --num_gpus <NUM_GPUs> \
   --workers_per_gpu <WORKERS_PER_GPU> \
-  --input_models_path <INPUT_MODELS_PATH> \
-  --log_to_wandb False \
-  --upload_to_s3 False
+  --input_models_path <INPUT_MODELS_PATH>
 ```
 
 This will then render the images into the `views` directory.
