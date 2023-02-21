@@ -20,10 +20,10 @@ class Args:
     input_models_path: str
     """Path to a json file containing a list of 3D object files"""
 
-    upload_to_s3: bool = True
+    upload_to_s3: bool = False
     """Whether to upload the rendered images to S3"""
 
-    log_to_wandb: bool = True
+    log_to_wandb: bool = False
     """Whether to log the progress to wandb"""
 
     num_gpus: int = -1
@@ -55,7 +55,7 @@ def worker(
                 uid = item.split("/")[-1].split(".")[0]
                 for f in glob.glob(f"views/{uid}/*"):
                     s3.upload_file(
-                        f, "objaverse-images", f"views/{uid}/{f.split('/')[-1]}"
+                        f, "objaverse-images", f"{uid}/{f.split('/')[-1]}"
                     )
             # remove the views/uid directory
             shutil.rmtree(f"views/{uid}")
