@@ -5,6 +5,11 @@
 ![F0x9thlacAApIKo](https://github.com/allenai/objaverse-rendering/assets/28768645/8470e4df-e39d-444b-9871-58fbee4b87fd)
 
 
+
+https://github.com/allenai/objaverse-rendering/assets/28768645/17981b67-5f43-4619-b4b6-aeb79fb9c1e2
+
+
+
 Scripts to perform distributed rendering of Objaverse objects in Blender across many GPUs and processes.
 
 ### System requirements
