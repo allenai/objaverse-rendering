@@ -12,6 +12,7 @@ https://github.com/allenai/objaverse-rendering/assets/28768645/17981b67-5f43-461
 
 https://github.com/allenai/objaverse-rendering/assets/28768645/10d621b5-b4ee-45dd-88c9-19e529fcecd4
 
+![F0x-MXuaIAI8PWR](https://github.com/allenai/objaverse-rendering/assets/28768645/0c8bb433-27df-43a1-8cb8-1772007c0899)
 
 
 
