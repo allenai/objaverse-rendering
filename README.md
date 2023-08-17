@@ -1,5 +1,10 @@
 # Objaverse Rendering
 
+![objaverse-xl-scale](https://github.com/allenai/objaverse-rendering/assets/28768645/43833dd3-ec97-4a3d-8782-00a6aea584b4)
+
+![F0x9thlacAApIKo](https://github.com/allenai/objaverse-rendering/assets/28768645/8470e4df-e39d-444b-9871-58fbee4b87fd)
+
+
 Scripts to perform distributed rendering of Objaverse objects in Blender across many GPUs and processes.
 
 ### System requirements
